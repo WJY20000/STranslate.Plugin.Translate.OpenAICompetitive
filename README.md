@@ -41,6 +41,4 @@ https://api.example.com/v1/models
 5. Restart or refresh the plugin, then in translation services add "OpenAI Competitive"
 
 ## Supported Models
-
-- gpt-4o
-- gpt-5
+All openAI-compatible models
