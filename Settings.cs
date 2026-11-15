@@ -6,11 +6,7 @@ public class Settings
     public string ApiKey { get; set; } = string.Empty;
     public string Url { get; set; } = "https://api.openai.com/";
     public string Model { get; set; } = "gpt-4o";
-    public List<string> Models { get; set; } =
-    [
-        "gpt-4o",
-        "gpt-5",
-    ];
+    public List<string> Models { get; set; } = new List<string> { "gpt-4o", "gpt-5" };
     public int MaxTokens { get; set; } = 2048;
     public double Temperature { get; set; } = 0.7;
     public int TopP { get; set; } = 1;
@@ -19,8 +15,8 @@ public class Settings
     public int? MaxRetries { get; set; } = 3;
     public int RetryDelayMilliseconds { get; set; } = 1000;
 
-    public List<Prompt> Prompts { get; set; } =
-    [
+    public List<Prompt> Prompts { get; set; } = new List<Prompt>
+    {
         new("翻译",
         [
             new PromptItem("system", "You are a professional, authentic translation engine. You only return the translated text, without any explanations."),
@@ -36,5 +32,5 @@ public class Settings
             new PromptItem("system", "You are a professional, authentic text summarization engine. You only return the summarized text, without any explanations."),
             new PromptItem("user", "Please summarize the following text in $source (avoid explaining the original text):\r\n\r\n$content"),
         ]),
-    ];
+    };
 }

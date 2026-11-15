@@ -12,18 +12,17 @@ jobs:
     runs-on: windows-latest
     
     steps:
-      - name: Checkout repository
+      - name: Checkout repository (Node.js 24 compatible)
         uses: actions/checkout@v5
         with:
           fetch-depth: 0
 
-      - name: Setup .NET (Node.js 24 compatible)
+      - name: Setup .NET 10.0 (Node.js 24 compatible)
         uses: actions/setup-dotnet@v5
         with:
           dotnet-version: |
-            8.0.x
-            9.0.x
-            
+            10.0.x
+          
       - name: Restore dependencies
         run: dotnet restore
 
