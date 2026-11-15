@@ -1,0 +1,59 @@
+name: Build STranslate Plugin spkg
+
+on:
+  push:
+    branches: [main, master]
+    tags: [v*.*.*]
+  pull_request:
+    branches: [main, master]
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: |
+            8.0.x
+            9.0.x
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build plugin
+        run: |
+          dotnet build STranslate.Plugin.Translate.OpenAICompetitive/STranslate.Plugin.Translate.OpenAICompetitive.csproj --configuration Release
+
+      - name: Publish plugin
+        run: |
+          mkdir -p artifacts
+          dotnet publish STranslate.Plugin.Translate.OpenAICompetitive/STranslate.Plugin.Translate.OpenAICompetitive.csproj `
+            -c Release `
+            -o artifacts `
+            --runtime win-x64 `
+            /p:IncludeNativeLibrariesForSelfExtract=false
+
+      - name: Create .spkg file
+        run: |
+          # The .spkg is typically a zip of the plugin dll and metadata
+          # For STranslate, we need to package the output appropriately
+          cd artifacts
+          # Create the spkg with proper naming matching the plugin name
+          PLUGIN_NAME="STranslate.Plugin.Translate.OpenAICompetitive"
+          zip "${PLUGIN_NAME}.spkg" `
+            STTranslate.Plugin.Translate.OpenAICompetitive.dll `
+            plugin.json `
+            icon.png
+
+      - name: Upload spkg artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: spkg-${{ github.sha }}
+          path: artifacts/${{ env.PLUGIN_NAME || 'STranslate.Plugin.Translate.OpenAICompetitive' }}.spkg
