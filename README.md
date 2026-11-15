@@ -42,5 +42,4 @@ https://api.example.com/v1/models
 
 ## Supported Models
 
-- gpt-4o
-- gpt-5
+All OpenAI-compatible models
