@@ -3,8 +3,7 @@ using Microsoft.Extensions.Logging;
 using STranslate.Plugin.Translate.OpenAICompetitive.View;
 using STranslate.Plugin.Translate.OpenAICompetitive.ViewModel;
 using System.Collections;
-using System.Text;
-using System.Text.Json.Nodes;
+using STranslate.Plugin.Translate.OpenAICompetitive.Protocol;
 using System.Windows.Controls;
 
 namespace STranslate.Plugin.Translate.OpenAICompetitive;
@@ -20,6 +19,7 @@ public class Main : LlmTranslatePluginBase
 
     public override void SelectPrompt(Prompt? prompt)
     {
+        if (prompt is null || !Prompts.Contains(prompt)) return;
         base.SelectPrompt(prompt);
 
         // 保存到配置
@@ -50,43 +50,10 @@ public class Main : LlmTranslatePluginBase
         TryUpdateHostServiceDisplayName(normalized);
     }
 
-    public override string? GetSourceLanguage(LangEnum langEnum) => langEnum switch
-    {
-        LangEnum.Auto => "Requires you to identify automatically",
-        LangEnum.ChineseSimplified => "Simplified Chinese",
-        LangEnum.ChineseTraditional => "Traditional Chinese",
-        LangEnum.Cantonese => "Cantonese",
-        LangEnum.English => "English",
-        LangEnum.Japanese => "Japanese",
-        LangEnum.Korean => "Korean",
-        LangEnum.French => "French",
-        LangEnum.Spanish => "Spanish",
-        LangEnum.Russian => "Russian",
-        LangEnum.German => "German",
-        LangEnum.Italian => "Italian",
-        LangEnum.Turkish => "Turkish",
-        LangEnum.PortuguesePortugal => "Portuguese",
-        LangEnum.PortugueseBrazil => "Portuguese",
-        LangEnum.Vietnamese => "Vietnamese",
-        LangEnum.Indonesian => "Indonesian",
-        LangEnum.Thai => "Thai",
-        LangEnum.Malay => "Malay",
-        LangEnum.Arabic => "Arabic",
-        LangEnum.Hindi => "Hindi",
-        LangEnum.MongolianCyrillic => "Mongolian",
-        LangEnum.MongolianTraditional => "Mongolian",
-        LangEnum.Khmer => "Central Khmer",
-        LangEnum.NorwegianBokmal => "Norwegian Bokmål",
-        LangEnum.NorwegianNynorsk => "Norwegian Nynorsk",
-        LangEnum.Persian => "Persian",
-        LangEnum.Swedish => "Swedish",
-        LangEnum.Polish => "Polish",
-        LangEnum.Dutch => "Dutch",
-        LangEnum.Ukrainian => "Ukrainian",
-        _ => "Requires you to identify automatically"
-    };
+    public override string? GetSourceLanguage(LangEnum langEnum) => LanguageName(langEnum);
+    public override string? GetTargetLanguage(LangEnum langEnum) => LanguageName(langEnum);
 
-    public override string? GetTargetLanguage(LangEnum langEnum) => langEnum switch
+    private static string? LanguageName(LangEnum langEnum) => langEnum switch
     {
         LangEnum.Auto => "Requires you to identify automatically",
         LangEnum.ChineseSimplified => "Simplified Chinese",
@@ -101,16 +68,16 @@ public class Main : LlmTranslatePluginBase
         LangEnum.German => "German",
         LangEnum.Italian => "Italian",
         LangEnum.Turkish => "Turkish",
-        LangEnum.PortuguesePortugal => "Portuguese",
-        LangEnum.PortugueseBrazil => "Portuguese",
+        LangEnum.PortuguesePortugal => "European Portuguese",
+        LangEnum.PortugueseBrazil => "Brazilian Portuguese",
         LangEnum.Vietnamese => "Vietnamese",
         LangEnum.Indonesian => "Indonesian",
         LangEnum.Thai => "Thai",
         LangEnum.Malay => "Malay",
         LangEnum.Arabic => "Arabic",
         LangEnum.Hindi => "Hindi",
-        LangEnum.MongolianCyrillic => "Mongolian",
-        LangEnum.MongolianTraditional => "Mongolian",
+        LangEnum.MongolianCyrillic => "Mongolian (Cyrillic script)",
+        LangEnum.MongolianTraditional => "Mongolian (traditional script)",
         LangEnum.Khmer => "Central Khmer",
         LangEnum.NorwegianBokmal => "Norwegian Bokmål",
         LangEnum.NorwegianNynorsk => "Norwegian Nynorsk",
@@ -119,153 +86,88 @@ public class Main : LlmTranslatePluginBase
         LangEnum.Polish => "Polish",
         LangEnum.Dutch => "Dutch",
         LangEnum.Ukrainian => "Ukrainian",
-        _ => "Requires you to identify automatically"
+        LangEnum.Uzbek => "Uzbek",
+        LangEnum.Uyghur => "Uyghur",
+        _ => null
     };
 
     public override void Init(IPluginContext context)
     {
+        _viewModel?.Dispose();
+        _viewModel = null;
+        _settingUi = null;
         Context = context;
         Settings = context.LoadSettingStorage<Settings>();
-        Context.MetaData.Name = NormalizeDisplayName(Settings.DisplayName);
-
-        Settings.Prompts.ForEach(Prompts.Add);
+        Settings.Normalize();
+        Context.MetaData.Name = Settings.DisplayName;
+        Prompts.Clear();
+        foreach (var prompt in Settings.Prompts)
+            Prompts.Add(prompt);
     }
 
     public override void Dispose() => _viewModel?.Dispose();
 
     public override async Task TranslateAsync(TranslateRequest request, TranslateResult result, CancellationToken cancellationToken = default)
     {
-        if (GetSourceLanguage(request.SourceLang) is not string sourceStr)
+        try
         {
-            result.Fail(Context.GetTranslation("UnsupportedSourceLang"));
-            return;
+            result.Success(await TranslateCoreAsync(request, text => result.Text = text, cancellationToken));
         }
-        if (GetTargetLanguage(request.TargetLang) is not string targetStr)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
+        catch (Exception ex)
         {
-            result.Fail(Context.GetTranslation("UnsupportedTargetLang"));
-            return;
+            result.Fail(ex.Message);
         }
+    }
 
-        // 构建最终URL
-        string url = UrlHelper.BuildFinalUrl(Settings.Url);
+    public Task<string> ValidateApiAsync(CancellationToken cancellationToken = default) =>
+        TranslateCoreAsync(new TranslateRequest("Hello world", LangEnum.English, LangEnum.ChineseSimplified),
+            _ => { }, cancellationToken);
 
-        // 选择模型
-        var model = Settings.Model.Trim();
-        model = string.IsNullOrEmpty(model) ? "gpt-4o" : model;
+    private async Task<string> TranslateCoreAsync(TranslateRequest request, Action<string> onText, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var source = GetSourceLanguage(request.SourceLang) ?? throw new InvalidOperationException(Context.GetTranslation("UnsupportedSourceLang"));
+        var target = GetTargetLanguage(request.TargetLang) ?? throw new InvalidOperationException(Context.GetTranslation("UnsupportedTargetLang"));
+        var url = ApiEndpoints.Chat(Settings.Url);
+        var prompt = Prompts.FirstOrDefault(p => p.IsEnabled) ??
+            throw new InvalidOperationException(Context.GetTranslation("NoEnabledPrompt"));
+        if (prompt.Items is null || prompt.Items.Any(item => item is null))
+            throw new InvalidOperationException("Prompt 消息配置无效，请重新编辑提示词。");
 
-        // 获取启用的提示词并克隆，避免修改原始配置
-        var prompt = Prompts.FirstOrDefault(x => x.IsEnabled);
-        if (prompt == null)
+        // 在第一个 await 前建立请求快照，设置页修改不会改变正在重试的请求。
+        var messages = prompt.Items.Select(item => new ChatMessage(item.Role,
+            ChatProtocol.Expand(item.Content, source, target, request.Text))).ToArray();
+        var stream = Settings.Stream;
+        var payload = ChatProtocol.Request(Settings.Model, messages, stream, Settings.MaxTokens,
+            Settings.Temperature, Settings.TopP, Settings.N);
+        var options = new Options { Headers = ChatProtocol.Headers(Settings.ApiKey) };
+        var hasOutput = false;
+        return await RetryPolicy.ExecuteAsync(async () =>
         {
-            result.Fail(Context.GetTranslation("NoEnabledPrompt"));
-            return;
-        }
-
-        // 克隆提示词项以避免修改原始配置
-        var clonedPrompt = prompt.Clone();
-        var messages = clonedPrompt.Items.Select(item => new PromptItem
-        {
-            Role = item.Role,
-            Content = item.Content
-        }).ToList();
-
-        // 替换Prompt关键字
-        messages.ToList().ForEach(item =>
-        {
-            item.Content = item.Content
-                .Replace("$source", sourceStr)
-                .Replace("$target", targetStr)
-                .Replace("$content", request.Text);
-        });
-
-        // 温度限定
-        var temperature = Math.Clamp(Settings.Temperature, 0, 2);
-
-        var content = new
-        {
-            model,
-            messages,
-            temperature,
-            stream = true
-        };
-
-        var option = new Options
-        {
-            Headers = new Dictionary<string, string>
+            var reader = new ChatResponseReader();
+            if (stream)
             {
-                { "Authorization", "Bearer " + Settings.ApiKey }
-            }
-        };
-
-        StringBuilder sb = new();
-        var isThink = false;
-
-        await Context.HttpService.StreamPostAsync(url, content, msg =>
-        {
-            if (string.IsNullOrEmpty(msg?.Trim()) || msg == ": OPENROUTER PROCESSING")
-                return;
-
-            var preprocessString = msg.Replace("data:", "").Trim();
-
-            // 结束标记
-            if (preprocessString.Equals("[DONE]"))
-                return;
-
-            try
-            {
-                // 解析JSON数据
-                var parsedData = JsonNode.Parse(preprocessString);
-
-                if (parsedData is null)
-                    return;
-
-                // 提取content的值
-                var contentValue = parsedData["choices"]?[0]?["delta"]?["content"]?.ToString();
-
-                if (string.IsNullOrEmpty(contentValue))
-                    return;
-
-                /***********************************************************************
-                 * 推理模型思考内容
-                 * 1. content字段内：Groq（推理后带有换行）(兼容think标签还带有换行情况)
-                 * 2. reasoning_content字段内：DeepSeek、硅基流动（推理后带有换行）、第三方服务商
-                 ***********************************************************************/
-
-                #region 针对content内容中含有推理内容的优化
-
-                if (contentValue.Trim() == "<?>")
-                    isThink = true;
-                if (contentValue.Trim() == "<?>")
+                await Context.HttpService.StreamPostAsync(url, payload, line =>
                 {
-                    isThink = false;
-                    // 跳过当前内容
-                    return;
-                }
-
-                if (isThink)
-                    return;
-
-                #endregion
-
-                #region 针对推理过后带有换行的情况进行优化
-
-                // 优化推理模型思考结束后的\n\n符号
-                if (string.IsNullOrWhiteSpace(sb.ToString()) && string.IsNullOrWhiteSpace(contentValue))
-                    return;
-
-                sb.Append(contentValue);
-
-                #endregion
-
-                result.Text = sb.ToString();
+                    cancellationToken.ThrowIfCancellationRequested();
+                    reader.ProcessLine(line);
+                    var text = reader.Text;
+                    if (text.Length > 0)
+                    {
+                        hasOutput = true;
+                        onText(text);
+                    }
+                }, options, cancellationToken);
             }
-            catch
+            else
             {
-                // Ignore
-                // * 适配OpenRouter等第三方服务流数据中包含与OpenI官方API中不同的数据
-                // * 如 ": OPENROUTER PROCESSING"
+                var response = await Context.HttpService.PostAsync(url, payload, options, cancellationToken);
+                reader.ReadResponse(response);
             }
-        }, option, cancellationToken: cancellationToken);
+            cancellationToken.ThrowIfCancellationRequested();
+            return reader.Complete();
+        }, () => hasOutput, Settings.MaxRetries, Settings.RetryDelayMilliseconds, cancellationToken);
     }
 
     private bool TryUpdateHostServiceDisplayName(string displayName)
