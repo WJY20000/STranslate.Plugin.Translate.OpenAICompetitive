@@ -1,0 +1,11 @@
+<ResourceDictionary
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:sys="clr-namespace:System;assembly=mscorlib">
+
+    <sys:String x:Key="DisplayName">プロバイダー名</sys:String>
+    <sys:String x:Key="DisplayName_Description">異なる OpenAI 互換プロバイダーを区別するための表示名</sys:String>
+    <sys:String x:Key="FetchModels">モデルを取得</sys:String>
+    <sys:String x:Key="FetchModels_ToolTip">現在の API URL と API Key でモデル一覧を取得します</sys:String>
+    <sys:String x:Key="NoEnabledPrompt">有効なプロンプトがありません。プロンプト設定を確認してください。</sys:String>
+</ResourceDictionary>

@@ -9,10 +9,12 @@ import zipfile
 def package(source: Path, output: Path) -> str:
     source = source.resolve()
     metadata = json.loads((source / "plugin.json").read_text(encoding="utf-8-sig"))
+    if not isinstance(metadata, dict):
+        raise ValueError("plugin.json must contain a JSON object")
     required = ["plugin.json", "LICENSE", "Languages/en.json", "Languages/en.xaml",
                 "Languages/zh-cn.json", "Languages/zh-cn.xaml"]
     for key in ("ExecuteFileName", "IconPath"):
-        name = metadata[key]
+        name = metadata.get(key)
         if not isinstance(name, str) or "/" in name or "\\" in name or name in ("", ".", ".."):
             raise ValueError(f"Invalid {key}: expected a root filename")
         required.append(name)
@@ -20,8 +22,10 @@ def package(source: Path, output: Path) -> str:
         path = source / name
         if not path.is_file() or path.stat().st_size == 0:
             raise ValueError(f"Missing or empty package file: {name}")
-    if not metadata.get("PluginID") or not metadata.get("Version"):
-        raise ValueError("PluginID and Version are required")
+    for key in ("PluginID", "Version"):
+        value = metadata.get(key)
+        if not isinstance(value, str) or not value.strip():
+            raise ValueError(f"{key} must be a non-empty string")
 
     files = [path for path in source.rglob("*") if path.is_file()
              and (path.suffix.lower() in (".dll", ".json", ".xaml", ".png") or path.name == "LICENSE")

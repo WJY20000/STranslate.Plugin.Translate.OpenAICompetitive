@@ -1,3 +1,29 @@
+# 0.3.3
+
+在 `61ff3b73718b4cc485839b74081e60b230f230c2` 之上继续修复与加固。
+
+## 请求与响应
+
+- 推理模型（GPT-5 / o1 / o3 / o4）强制使用单个候选，避免服务商因 `n > 1` 拒绝请求；插件本身也只展示第一个候选。
+- 模型列表解析对空响应和非法 JSON 给出明确错误，并兼容将模型名放在 `model` 字段上的网关。
+- 重试间隔改为指数退避（单步上限 60 秒），持续故障时不会以固定频率反复冲击服务端。
+
+## 设置与界面
+
+- 补上 `NoEnabledPrompt` 语言键：此前宿主和插件都没有该键，错误会退化为 `No Translation for key NoEnabledPrompt` 并记录错误日志。
+- 补齐 ja / ko / zh-tw 的插件界面字典，不再回退到英文；五个界面字典统一包含 `DisplayName`、`DisplayName_Description`、`FetchModels`、`FetchModels_ToolTip`、`NoEnabledPrompt`。
+- 显示名同步到宿主服务时缓存 `ServiceManager` 类型，避免每次按键重复反射扫描程序集。
+
+## 打包
+
+- `scripts/package.py` 对缺失或非法的 `ExecuteFileName`、`IconPath`、`PluginID`、`Version` 给出明确错误，拒绝非对象的 `plugin.json`。
+
+## 验证范围
+
+新增 10 个协议回归测试，仓库现包含 77 个协议回归测试、9 个打包测试，以及独立的 Windows 宿主接口/设置页集成测试。协议和打包测试可在 Linux 运行；Windows 集成测试在工作流中执行。
+
+不同服务商及模型有各自的接口差异，真实 API、Windows 桌面交互和现有宿主安装仍需实际环境验证。
+
 # 0.3.2
 
 修复基于提交 `f5e08972b232784f4c55b69b6728b19c088e3368`。

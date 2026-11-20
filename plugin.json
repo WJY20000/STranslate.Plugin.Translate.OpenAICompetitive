@@ -3,7 +3,7 @@
   "Name": "OpenAI Competitive",
   "Description": "Extended OpenAI-compatible plugin for STranslate",
   "Author": "Infinite",
-  "Version": "0.3.2",
+  "Version": "0.3.3",
   "Website": "https://github.com/WJY20000/STranslate.Plugin.Translate.OpenAICompetitive",
   "ExecuteFileName": "STranslate.Plugin.Translate.OpenAICompetitive.dll",
   "IconPath": "icon.png"

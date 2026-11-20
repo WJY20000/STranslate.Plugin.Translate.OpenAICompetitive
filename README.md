@@ -25,7 +25,7 @@ STranslate 的 OpenAI Chat Completions 兼容翻译插件。支持为不同服�
 - **MaxTokens**：输出 token 上限，`0` 表示交给服务端决定。达到上限会明确报错，避免误认为译文完整。
 - **Temperature**：普通模型取值 `0–2`。GPT-5 / o1 / o3 / o4 系列使用 `max_completion_tokens`，省略不兼容的采样参数。其他兼容服务仍需遵循服务商的模型要求。
 - 提示词支持 `$source`、`$target`、`$content`，用户原文中的同名字符串不会被再次替换。
-- 原有配置项 `TopP`、`N`、`MaxRetries` 和 `RetryDelayMilliseconds` 生效；`N > 1` 时仅展示第一个候选。默认最多重试三次，仅重试暂时性网络/HTTP 错误；已输出部分译文后不重试。
+- 原有配置项 `TopP`、`N`、`MaxRetries` 和 `RetryDelayMilliseconds` 生效；推理模型固定使用单个候选，其他模型 `N > 1` 时仅展示第一个候选。默认最多重试三次，重试间隔按指数退避（单步上限 60 秒），仅重试暂时性网络/HTTP 错误；已输出部分译文后不重试。
 - 推理字段与跨分片 `<think>…</think>` 内容被过滤。空响应、API 错误、无效 JSON、未完成的流及内容过滤都会报告失败。连接验证使用同一翻译链路。
 
 ## 从源码构建

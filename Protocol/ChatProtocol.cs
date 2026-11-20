@@ -1,4 +1,5 @@
 using System.IO;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.Json.Serialization;
 using System.Text.RegularExpressions;
@@ -28,12 +29,14 @@ public static partial class ChatProtocol
         if (items.Length == 0 || items.Any(m => string.IsNullOrWhiteSpace(m.Role)))
             throw new InvalidOperationException("请先完善 Prompt 配置：消息及角色不能为空。");
         var reasoningModel = ReasoningModel().IsMatch(selectedModel);
+        // 推理模型只接受单个候选；插件也只展示第一个，避免请求被服务端拒绝。
+        var candidates = reasoningModel ? 1 : Math.Clamp(n, 1, 128);
         var payload = new Dictionary<string, object>
         {
             ["model"] = selectedModel,
             ["messages"] = items,
             ["stream"] = stream,
-            ["n"] = Math.Clamp(n, 1, 128)
+            ["n"] = candidates
         };
         if (maxTokens > 0)
             payload[reasoningModel ? "max_completion_tokens" : "max_tokens"] = maxTokens;
@@ -55,16 +58,33 @@ public static partial class ChatProtocol
 
     public static IReadOnlyList<string> ReadModels(string response)
     {
-        var root = JsonNode.Parse(response) as JsonObject ?? throw new InvalidDataException("模型列表不是有效的 JSON 对象。");
+        if (string.IsNullOrWhiteSpace(response))
+            throw new InvalidDataException("模型列表响应为空。");
+        JsonObject root;
+        try
+        {
+            root = JsonNode.Parse(response) as JsonObject ??
+                   throw new InvalidDataException("模型列表不是有效的 JSON 对象。");
+        }
+        catch (JsonException ex)
+        {
+            throw new InvalidDataException("模型列表不是有效的 JSON 数据。", ex);
+        }
         ThrowIfError(root);
         if (root["data"] is not JsonArray models)
             throw new InvalidDataException("模型列表缺少 data 数组。");
+        // 兼容把模型名放在 model 字段上的网关（如部分 Gemini 兼容服务）。
         var ids = models.OfType<JsonObject>()
-            .Select(item => item["id"] is JsonValue value && value.TryGetValue<string>(out var id) ? id.Trim() : null)
+            .Select(item => ReadString(item, "id") ?? ReadString(item, "model"))
             .Where(id => !string.IsNullOrWhiteSpace(id)).Select(id => id!)
             .Distinct(StringComparer.Ordinal).Order(StringComparer.Ordinal).ToArray();
         return ids.Length > 0 ? ids : throw new InvalidDataException("未获取到可用模型。");
     }
+
+    private static string? ReadString(JsonObject item, string key) =>
+        item[key] is JsonValue value && value.TryGetValue<string>(out var text) && !string.IsNullOrWhiteSpace(text)
+            ? text.Trim()
+            : null;
 
     internal static void ThrowIfError(JsonObject root)
     {
