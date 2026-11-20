@@ -91,6 +91,7 @@ internal static class Program
         {
             var result = new TranslateResult(); await f.Main.TranslateAsync(Request, result);
             Equal(false, result.IsSuccess); Equal(0, f.Requests);
+            Equal("NoEnabledPrompt", result.Text);
             Pass("missing prompt fails before making a network request");
         }
         using (var f = new Fixture(new Settings { RetryDelayMilliseconds = 0 }))

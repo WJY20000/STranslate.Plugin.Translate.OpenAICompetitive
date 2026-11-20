@@ -44,6 +44,9 @@ Check("key header injection", () => Throws<ArgumentException>(() => ChatProtocol
 Check("literal placeholders in original", () => Equal("$source $target $content -> 中文", ChatProtocol.Expand("$content -> $target", "English", "中文", "$source $target $content")));
 Check("literal placeholders in replacement", () => Equal("$target $content 原文", ChatProtocol.Expand("$source $target $content", "$target", "$content", "原文")));
 Check("model IDs clean and deduplicated", () => Equal("a,z", string.Join(',', ChatProtocol.ReadModels("{\"data\":[{\"id\":\" z \"},null,{}, {\"id\":\"a\"},{\"id\":\"z\"},{\"id\":123}]}"))));
+Check("model field fallback", () => Equal("a,b", string.Join(',', ChatProtocol.ReadModels("{\"data\":[{\"model\":\" b \"},{\"id\":\"a\"}]}"))));
+Check("empty model response", () => Throws<InvalidDataException>(() => ChatProtocol.ReadModels("")));
+Check("malformed model JSON", () => Throws<InvalidDataException>(() => ChatProtocol.ReadModels("not json")));
 Check("empty model list", () => Throws<InvalidDataException>(() => ChatProtocol.ReadModels("{\"data\":[]}")));
 Check("model API error", () => Throws<InvalidOperationException>(() => ChatProtocol.ReadModels("{\"error\":{\"message\":\"unauthorized\"}}")));
 Check("malformed models", () => Throws<InvalidDataException>(() => ChatProtocol.ReadModels("{\"data\":{}}")));
@@ -68,6 +71,11 @@ foreach (var model in new[] { "gpt-5", "gpt-5-mini", "gpt-5.1", "o1", "o3-mini",
         Equal(100, request["max_completion_tokens"]);
         if (request.ContainsKey("temperature") || request.ContainsKey("top_p")) throw new Exception("unsupported reasoning parameters");
     });
+foreach (var model in new[] { "gpt-5", "gpt-5-mini", "o1", "o3-mini", "o4-mini" })
+    Check("reasoning model single candidate " + model, () =>
+        Equal(1, ChatProtocol.Request(model, message, true, 100, 0.7, 1, 4)["n"]));
+Check("normal model keeps candidate count", () =>
+    Equal(3, ChatProtocol.Request("gpt-4o", message, true, 100, 0.7, 1, 3)["n"]));
 Check("empty prompt", () => Throws<InvalidOperationException>(() => ChatProtocol.Request("m", [], true, 1, 1, 1, 1)));
 Check("SSE comments, metadata, usage and data literal", () =>
 {
@@ -157,6 +165,17 @@ await RetryCheck("retry limit", async () =>
     var calls = 0;
     try { await RetryPolicy.ExecuteAsync<int>(() => { calls++; throw new HttpRequestException("offline"); }, () => false, 2, 0, default); throw new Exception("Expected failure"); }
     catch (HttpRequestException) { Equal(3, calls); }
+});
+await RetryCheck("retry backoff grows", async () =>
+{
+    var calls = 0;
+    var watch = System.Diagnostics.Stopwatch.StartNew();
+    try { await RetryPolicy.ExecuteAsync<int>(() => { calls++; throw new HttpRequestException("offline"); }, () => false, 2, 10, default); }
+    catch (HttpRequestException) { }
+    watch.Stop();
+    Equal(3, calls);
+    // 预期等待 10ms + 20ms；下界断言不受计时器精度影响。
+    if (watch.ElapsedMilliseconds < 25) throw new Exception("Expected growing backoff, got " + watch.ElapsedMilliseconds + "ms");
 });
 await RetryCheck("cancellation before request", async () =>
 {

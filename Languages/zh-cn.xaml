@@ -7,4 +7,5 @@
     <sys:String x:Key="DisplayName_Description">用于区分不同 OpenAI 兼容服务的显示名称</sys:String>
     <sys:String x:Key="FetchModels">获取模型</sys:String>
     <sys:String x:Key="FetchModels_ToolTip">使用当前 API URL 和 API Key 获取模型列表</sys:String>
+    <sys:String x:Key="NoEnabledPrompt">没有启用的提示词，请检查提示词设置。</sys:String>
 </ResourceDictionary>

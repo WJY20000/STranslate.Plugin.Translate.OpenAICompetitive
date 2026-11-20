@@ -170,11 +170,14 @@ public class Main : LlmTranslatePluginBase
         }, () => hasOutput, Settings.MaxRetries, Settings.RetryDelayMilliseconds, cancellationToken);
     }
 
+    private static Type? _serviceManagerType;
+
     private bool TryUpdateHostServiceDisplayName(string displayName)
     {
         try
         {
-            var serviceManagerType = AppDomain.CurrentDomain
+            // 显示名每次按键都会同步，类型查找只需在宿主程序集加载后做一次。
+            var serviceManagerType = _serviceManagerType ??= AppDomain.CurrentDomain
                 .GetAssemblies()
                 .Select(assembly => assembly.GetType("STranslate.Core.ServiceManager", false))
                 .FirstOrDefault(type => type != null);

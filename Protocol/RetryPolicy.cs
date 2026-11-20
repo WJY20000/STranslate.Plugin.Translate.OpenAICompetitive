@@ -9,6 +9,7 @@ public static class RetryPolicy
         int? maxRetries, int delayMilliseconds, CancellationToken cancellationToken)
     {
         var retries = Math.Clamp(maxRetries ?? 3, 0, 5);
+        var delay = Math.Clamp(delayMilliseconds, 0, 60000);
         for (var attempt = 0; ; attempt++)
         {
             cancellationToken.ThrowIfCancellationRequested();
@@ -16,7 +17,9 @@ public static class RetryPolicy
             catch (Exception ex) when (attempt < retries && !hasOutput() &&
                 !cancellationToken.IsCancellationRequested && IsTransient(ex))
             {
-                await Task.Delay(Math.Clamp(delayMilliseconds, 0, 60000), cancellationToken);
+                // 指数退避，单步上限 60 秒，避免持续故障时长时间阻塞调用方。
+                var wait = Math.Min(delay * (1 << attempt), 60000);
+                await Task.Delay(wait, cancellationToken);
             }
         }
     }

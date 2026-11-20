@@ -7,4 +7,5 @@
     <sys:String x:Key="DisplayName_Description">Display name used to distinguish OpenAI-compatible providers</sys:String>
     <sys:String x:Key="FetchModels">Fetch models</sys:String>
     <sys:String x:Key="FetchModels_ToolTip">Fetch model list with the current API URL and API key</sys:String>
+    <sys:String x:Key="NoEnabledPrompt">No enabled prompt. Check the prompt settings.</sys:String>
 </ResourceDictionary>

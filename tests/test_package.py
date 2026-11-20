@@ -52,6 +52,23 @@ class PackagingTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "root filename"):
             module.package(self.source, self.output)
 
+    def test_missing_entry_filename_rejected(self):
+        del self.metadata["ExecuteFileName"]
+        self.write_metadata()
+        with self.assertRaisesRegex(ValueError, "ExecuteFileName"):
+            module.package(self.source, self.output)
+
+    def test_non_object_metadata_rejected(self):
+        (self.source / "plugin.json").write_text("[]", encoding="utf-8")
+        with self.assertRaisesRegex(ValueError, "JSON object"):
+            module.package(self.source, self.output)
+
+    def test_blank_identity_rejected(self):
+        self.metadata["PluginID"] = "  "
+        self.write_metadata()
+        with self.assertRaisesRegex(ValueError, "PluginID"):
+            module.package(self.source, self.output)
+
     def test_host_sdk_and_debug_symbols_not_shipped(self):
         for name in ("STranslate.Plugin.dll", "plugin.pdb"):
             (self.source / name).write_bytes(b"not-for-shipping")
